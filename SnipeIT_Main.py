@@ -6,6 +6,8 @@ import logging
 import datetime
 from SnipeIT_AssetTag import *
 from api_key import *
+from SnipeIT_LabelPrinting import *     
+import socket              
 
 # Date, time
 now = datetime.datetime.now()
@@ -76,12 +78,11 @@ for i in range(0,len(df['id'])):
             kering_asset_tag = KeringAssetTagDedicated(df = df, i = i)
         else:
             logging.error("Unexpected company.id or category.id in SnipeIT")
-    
+
         # Update on SnipeIT using api
         snipe_it_asset_id = df['id'][i] # Define the SnipeIT ID
         url = f"http://192.168.31.153/api/v1/hardware/{snipe_it_asset_id}"
-        payload = {"_snipeit_kering_asset_tag_2":f"{kering_asset_tag}",
-                   "status_id":4}
+        payload = {"_snipeit_kering_asset_tag_2":f"{kering_asset_tag}"}
         response = requests.put(url, json=payload, headers=headers)
 
         # Store the SnipeIT ID in a list
@@ -102,8 +103,21 @@ df = pd.json_normalize(response_dict["rows"])
 df_modified_rows = df.loc[df['id'].isin(id_list)]
 #print(df_modified_rows.columns)
 
+## Label Printing
+for i in range(0,len(df_modified_rows['custom_fields.Kering Asset Tag.value'])):
+    try:
+        printbrandlocationlabel(df_modified_rows.iloc[i]['company.name'],df_modified_rows.iloc[i]['location.name'])
+    except:
+        logging.error("Error printing brandlocationlabel")
+    try:
+        printkeringassettaglabel(df_modified_rows.iloc[i]['custom_fields.Kering Asset Tag.value'])
+    except:
+        logging.error("Error printing keringassettaglabel")
+
+## Export to Excel as "Asset List + datetime.xlsx"
 
 df_sc = df_modified_rows[['company.name',
+                        'location.name',
                         'assigned_to',
                         'custom_fields.Kering Location.value',
                         'purchase_cost',
@@ -114,12 +128,10 @@ df_sc = df_modified_rows[['company.name',
                         'company.name']] ## Select columns
 # FUTHER MOD: CURRENCY, TAX
 
-## Export as "Asset List + datetime.xlsx"
-
 datatoexcel = pd.ExcelWriter("X:/Project/AMS_Asset_Export/Asset List_"+now_date+"_"+now_time+".xlsx")
 df_sc.to_excel(datatoexcel)
 datatoexcel.close()
 
 # Put script in a single executable file
 # cd HengJi\AMS_Companion
-# pyinstaller -F -n SnipeIT_Companion_v1.2 SnipeIT_Main.py
+# pyinstaller -F -n SnipeIT_Companion_v1.x SnipeIT_Main.py
